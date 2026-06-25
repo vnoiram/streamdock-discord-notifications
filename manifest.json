@@ -1,0 +1,44 @@
+{
+  "Name": "Stream Dock Discord Notifications",
+  "Description": "Show Discord DM previews from Windows notifications.",
+  "Author": "local",
+  "Version": "0.2.0",
+  "CodePath": "plugin.html",
+  "Icon": "icons/plugin",
+  "Category": "Chat",
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Actions": [
+    {
+      "UUID": "local.streamdock.discord.latest",
+      "Name": "Latest DM",
+      "Tooltip": "Show Discord notification previews and browse history.",
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Discord", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.discord.clear",
+      "Name": "Clear",
+      "Tooltip": "Clear the displayed Discord notification history.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Clear", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
+      "UUID": "local.streamdock.discord.diagnostics",
+      "Name": "Diagnostics",
+      "Tooltip": "Show Discord helper diagnostics.",
+      "Controllers": ["Keypad"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Diag", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    }
+  ]
+}

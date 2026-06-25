@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="property-inspector.css">
+    <script src="property-inspector.js"></script>
+  </head>
+  <body>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Endpoint</div>
+      <input id="endpoint" class="sdpi-item-value" value="ws://127.0.0.1:41921">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Body chars</div>
+      <input id="maxBodyChars" class="sdpi-item-value" type="number" min="12" max="120" value="48">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">History</div>
+      <input id="historyLimit" class="sdpi-item-value" type="number" min="1" max="50" value="10">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Filter</div>
+      <input id="filter" class="sdpi-item-value" placeholder="sender/body contains">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Privacy</div>
+      <select id="privacyMode" class="sdpi-item-value">
+        <option value="preview">Show preview</option>
+        <option value="sender">Sender only</option>
+        <option value="count">Count only</option>
+      </select>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Settings</div>
+      <button id="exportSettings" class="sdpi-button" type="button">Export</button>
+      <label class="sdpi-button" for="importSettings">Import</label>
+      <input id="importSettings" type="file" accept="application/json" hidden>
+    </div>
+  </body>
+</html>
