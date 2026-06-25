@@ -72,6 +72,8 @@ Package this repository root as the plugin directory, or copy these files into a
 
 The plugin defaults to `ws://127.0.0.1:41921`, which maps to the helper's `http://127.0.0.1:41921/` WebSocket listener.
 
+The Property Inspector warns when the helper endpoint is not localhost because notification sender/body data can be sent to that endpoint.
+
 Build a distributable plugin folder:
 
 ```bash

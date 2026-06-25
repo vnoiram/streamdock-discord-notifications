@@ -14,6 +14,7 @@
     readForm();
     websocket.send(JSON.stringify({ event: 'setGlobalSettings', context: context, payload: globalSettings }));
     websocket.send(JSON.stringify({ event: 'setSettings', context: context, payload: actionSettings }));
+    renderEndpointStatus();
   }
 
   function readForm() {
@@ -54,6 +55,7 @@
     document.getElementById('historyFile').value = globalSettings.historyFile || '';
     document.getElementById('persistHistory').checked = globalSettings.persistHistory === true || globalSettings.persistHistory === 'true';
     document.getElementById('encryptHistory').checked = globalSettings.encryptHistory !== false && globalSettings.encryptHistory !== 'false';
+    renderEndpointStatus();
   }
 
   function applyActionSettings(next) {
@@ -136,6 +138,30 @@
 
   function setStatus(text) {
     document.getElementById('status').textContent = text;
+  }
+
+  function renderEndpointStatus() {
+    var status = document.getElementById('endpointStatus');
+    if (!status) return;
+    var endpoint = document.getElementById('endpoint').value.trim();
+    if (!endpoint) {
+      status.textContent = 'missing helper endpoint';
+      return;
+    }
+    if (!/^wss?:\/\//i.test(endpoint)) {
+      status.textContent = 'invalid WebSocket endpoint';
+      return;
+    }
+    status.textContent = isLoopbackEndpoint(endpoint) ? 'localhost helper' : 'remote helper: notifications may leave this PC';
+  }
+
+  function isLoopbackEndpoint(endpoint) {
+    try {
+      var url = new URL(endpoint);
+      return ['localhost', '127.0.0.1', '::1', '[::1]'].indexOf(url.hostname) !== -1;
+    } catch (error) {
+      return false;
+    }
   }
 
   function refreshSenders() {
@@ -223,5 +249,6 @@
     document.getElementById('pasteSettings').addEventListener('click', pasteSettings);
     document.getElementById('exportSettings').addEventListener('click', exportSettings);
     document.getElementById('importSettings').addEventListener('change', importSettings);
+    renderEndpointStatus();
   });
 }());
