@@ -25,7 +25,7 @@
     quietEnd: '',
     autoReadSeconds: 0
   };
-  var globalSettings = { endpoint: DEFAULT_ENDPOINT, appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: 'preview', persistHistory: true, previewSeconds: 0 };
+  var globalSettings = { endpoint: DEFAULT_ENDPOINT, appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: 'preview', persistHistory: false, encryptHistory: true, previewSeconds: 0 };
   var contexts = {};
   var state = { connected: false, permission: 'unknown', sender: '', body: '', history: [], index: 0, unread: {} };
 
@@ -247,7 +247,7 @@
       state.connected = true;
       refreshTitles();
       configureHelper();
-      helperSend({ command: 'subscribe', app: globalSettings.appName || 'Discord', persist: globalSettings.persistHistory !== false });
+      helperSend({ command: 'subscribe', app: globalSettings.appName || 'Discord', persist: globalSettings.persistHistory === true });
     };
 
     helperSocket.onmessage = function (event) {
@@ -380,7 +380,9 @@
     helperSend({
       command: 'configure',
       historyFile: globalSettings.historyFile || '',
-      maxHistory: Number(globalSettings.historyStoreLimit) || 50
+      maxHistory: Number(globalSettings.historyStoreLimit) || 50,
+      persistHistory: globalSettings.persistHistory === true || globalSettings.persistHistory === 'true',
+      encryptHistory: globalSettings.encryptHistory !== false && globalSettings.encryptHistory !== 'false'
     });
   }
 

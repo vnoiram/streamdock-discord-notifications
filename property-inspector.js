@@ -3,7 +3,7 @@
 
   var websocket = null;
   var context = null;
-  var globalSettings = { endpoint: 'ws://127.0.0.1:41921', appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', persistHistory: true };
+  var globalSettings = { endpoint: 'ws://127.0.0.1:41921', appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', persistHistory: false, encryptHistory: true };
   var actionSettings = { filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0 };
   var helperSocket = null;
 
@@ -24,6 +24,7 @@
     globalSettings.historyStoreLimit = Number(document.getElementById('historyStoreLimit').value) || 50;
     globalSettings.historyFile = document.getElementById('historyFile').value.trim();
     globalSettings.persistHistory = document.getElementById('persistHistory').checked;
+    globalSettings.encryptHistory = document.getElementById('encryptHistory').checked;
     actionSettings.filter = document.getElementById('filter').value.trim();
     actionSettings.regexFilter = document.getElementById('regexFilter').value.trim();
     actionSettings.senderFilter = document.getElementById('senderFilter').value.trim();
@@ -51,7 +52,8 @@
     document.getElementById('historyLimit').value = globalSettings.historyLimit;
     document.getElementById('historyStoreLimit').value = globalSettings.historyStoreLimit || 50;
     document.getElementById('historyFile').value = globalSettings.historyFile || '';
-    document.getElementById('persistHistory').checked = globalSettings.persistHistory !== false && globalSettings.persistHistory !== 'false';
+    document.getElementById('persistHistory').checked = globalSettings.persistHistory === true || globalSettings.persistHistory === 'true';
+    document.getElementById('encryptHistory').checked = globalSettings.encryptHistory !== false && globalSettings.encryptHistory !== 'false';
   }
 
   function applyActionSettings(next) {
@@ -215,6 +217,7 @@
     document.getElementById('quietEnd').addEventListener('input', update);
     document.getElementById('autoReadSeconds').addEventListener('input', update);
     document.getElementById('persistHistory').addEventListener('change', update);
+    document.getElementById('encryptHistory').addEventListener('change', update);
     document.getElementById('refreshSenders').addEventListener('click', refreshSenders);
     document.getElementById('copySettings').addEventListener('click', copySettings);
     document.getElementById('pasteSettings').addEventListener('click', pasteSettings);

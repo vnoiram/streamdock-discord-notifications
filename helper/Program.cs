@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using System.Net;
 using System.Net.WebSockets;
 using System.Runtime.Versioning;
@@ -26,6 +27,8 @@ internal static class Program
     private static string? _historyFile;
     private static int _maxHistory = 50;
     private static string _defaultApp = "Discord";
+    private static bool _persistHistory;
+    private static bool _encryptHistory = true;
 
     private static async Task Main(string[] args)
     {
@@ -41,6 +44,8 @@ internal static class Program
             ?? Environment.GetEnvironmentVariable("STREAMDOCK_NOTIFICATION_APP")
             ?? "Discord";
         _maxHistory = Math.Clamp(ParseIntArg(args, "--max-history=") ?? ParseIntEnv("STREAMDOCK_DISCORD_MAX_HISTORY") ?? 50, 1, 500);
+        _persistHistory = ParseBoolArg(args, "--persist-history=") ?? ParseBoolEnv("STREAMDOCK_DISCORD_PERSIST_HISTORY") ?? false;
+        _encryptHistory = ParseBoolArg(args, "--encrypt-history=") ?? ParseBoolEnv("STREAMDOCK_DISCORD_ENCRYPT_HISTORY") ?? true;
         SubscribedApps[_defaultApp] = 0;
 
         LoadHistory();
@@ -166,8 +171,8 @@ internal static class Program
             }
             else if (command?.Command is "configure")
             {
-                ConfigureHistory(command.HistoryFile, command.MaxHistory);
-                await SendAsync(socket, new { @event = "configured", maxHistory = _maxHistory, historyFile = _historyFile });
+                ConfigureHistory(command.HistoryFile, command.MaxHistory, command.PersistHistory, command.EncryptHistory);
+                await SendAsync(socket, new { @event = "configured", maxHistory = _maxHistory, historyFile = _persistHistory ? _historyFile : "", persistHistory = _persistHistory, encryptHistory = _encryptHistory });
             }
             else if (command?.Command is "latest")
             {
@@ -354,7 +359,7 @@ internal static class Program
 
     private static void LoadHistory()
     {
-        if (string.IsNullOrWhiteSpace(_historyFile) || !File.Exists(_historyFile))
+        if (!_persistHistory || string.IsNullOrWhiteSpace(_historyFile) || !File.Exists(_historyFile))
         {
             lock (HistoryLock)
             {
@@ -364,7 +369,8 @@ internal static class Program
         }
         try
         {
-            var items = JsonSerializer.Deserialize<List<LatestNotification>>(File.ReadAllText(_historyFile), JsonOptions);
+            var text = File.ReadAllText(_historyFile);
+            var items = JsonSerializer.Deserialize<List<LatestNotification>>(DecodeHistoryFile(text), JsonOptions);
             if (items is null)
             {
                 return;
@@ -383,7 +389,7 @@ internal static class Program
 
     private static void SaveHistory()
     {
-        if (string.IsNullOrWhiteSpace(_historyFile))
+        if (!_persistHistory || string.IsNullOrWhiteSpace(_historyFile))
         {
             return;
         }
@@ -396,7 +402,8 @@ internal static class Program
             }
             lock (HistoryLock)
             {
-                File.WriteAllText(_historyFile, JsonSerializer.Serialize(History.Take(_maxHistory), JsonOptions));
+                var json = JsonSerializer.Serialize(History.Take(_maxHistory), JsonOptions);
+                File.WriteAllText(_historyFile, _encryptHistory ? EncodeEncryptedHistory(json) : json);
             }
         }
         catch (Exception error)
@@ -433,11 +440,24 @@ internal static class Program
         }
     }
 
-    private static void ConfigureHistory(string? historyFile, int? maxHistory)
+    private static void ConfigureHistory(string? historyFile, int? maxHistory, bool? persistHistory, bool? encryptHistory)
     {
+        var previousPersist = _persistHistory;
+        if (persistHistory is not null)
+        {
+            _persistHistory = persistHistory.Value;
+        }
+        if (encryptHistory is not null)
+        {
+            _encryptHistory = encryptHistory.Value;
+        }
         if (!string.IsNullOrWhiteSpace(historyFile) && !historyFile.Equals(_historyFile, StringComparison.OrdinalIgnoreCase))
         {
             _historyFile = ExpandEnvironmentPath(historyFile);
+            LoadHistory();
+        }
+        else if (_persistHistory && !previousPersist)
+        {
             LoadHistory();
         }
         if (maxHistory is not null)
@@ -450,8 +470,25 @@ internal static class Program
                     History.RemoveRange(_maxHistory, History.Count - _maxHistory);
                 }
             }
-            SaveHistory();
         }
+        SaveHistory();
+    }
+
+    private static string EncodeEncryptedHistory(string json)
+    {
+        var protectedBytes = Dpapi.Protect(Encoding.UTF8.GetBytes(json));
+        return "streamdock-dpapi-v1:" + Convert.ToBase64String(protectedBytes);
+    }
+
+    private static string DecodeHistoryFile(string text)
+    {
+        const string prefix = "streamdock-dpapi-v1:";
+        if (!text.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return text;
+        }
+        var protectedBytes = Convert.FromBase64String(text[prefix.Length..]);
+        return Encoding.UTF8.GetString(Dpapi.Unprotect(protectedBytes));
     }
 
     private static string ExpandEnvironmentPath(string path)
@@ -470,7 +507,40 @@ internal static class Program
         return int.TryParse(Environment.GetEnvironmentVariable(name), out var value) ? value : null;
     }
 
-    private sealed record HelperCommand(string? Command, string? App, int? Limit, bool? Persist, string? Sender, string? SenderMatchMode, string? HistoryFile, int? MaxHistory);
+    private static bool? ParseBoolArg(string[] args, string prefix)
+    {
+        var raw = args.FirstOrDefault(arg => arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Split('=', 2)[1];
+        return ParseBool(raw);
+    }
+
+    private static bool? ParseBoolEnv(string name)
+    {
+        return ParseBool(Environment.GetEnvironmentVariable(name));
+    }
+
+    private static bool? ParseBool(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+        if (bool.TryParse(raw, out var value))
+        {
+            return value;
+        }
+        raw = raw.Trim().ToLowerInvariant();
+        if (raw is "1" or "yes" or "on")
+        {
+            return true;
+        }
+        if (raw is "0" or "no" or "off")
+        {
+            return false;
+        }
+        return null;
+    }
+
+    private sealed record HelperCommand(string? Command, string? App, int? Limit, bool? Persist, string? Sender, string? SenderMatchMode, string? HistoryFile, int? MaxHistory, bool? PersistHistory, bool? EncryptHistory);
 
     private sealed record LatestNotification(
         string AppName,
@@ -478,4 +548,80 @@ internal static class Program
         string Body,
         bool PreviewAvailable,
         DateTimeOffset Created);
+
+    private static class Dpapi
+    {
+        public static byte[] Protect(byte[] data) => CryptProtect(data, protect: true);
+
+        public static byte[] Unprotect(byte[] data) => CryptProtect(data, protect: false);
+
+        private static byte[] CryptProtect(byte[] data, bool protect)
+        {
+            var input = new DataBlob(data);
+            var output = new DataBlob();
+            try
+            {
+                var ok = protect
+                    ? CryptProtectData(ref input, null, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0, ref output)
+                    : CryptUnprotectData(ref input, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0, ref output);
+                if (!ok)
+                {
+                    throw new InvalidOperationException($"DPAPI failed: {Marshal.GetLastWin32Error()}");
+                }
+                var bytes = new byte[output.CbData];
+                Marshal.Copy(output.PbData, bytes, 0, bytes.Length);
+                return bytes;
+            }
+            finally
+            {
+                input.FreeManaged();
+                output.FreeNative();
+            }
+        }
+
+        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool CryptProtectData(ref DataBlob dataIn, string? description, IntPtr optionalEntropy, IntPtr reserved, IntPtr promptStruct, int flags, ref DataBlob dataOut);
+
+        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool CryptUnprotectData(ref DataBlob dataIn, IntPtr description, IntPtr optionalEntropy, IntPtr reserved, IntPtr promptStruct, int flags, ref DataBlob dataOut);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr LocalFree(IntPtr handle);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DataBlob
+        {
+            public int CbData;
+            public IntPtr PbData;
+
+            public DataBlob(byte[] bytes)
+            {
+                CbData = bytes.Length;
+                PbData = Marshal.AllocHGlobal(bytes.Length);
+                Marshal.Copy(bytes, 0, PbData, bytes.Length);
+            }
+
+            public void FreeManaged()
+            {
+                if (PbData == IntPtr.Zero)
+                {
+                    return;
+                }
+                Marshal.FreeHGlobal(PbData);
+                PbData = IntPtr.Zero;
+                CbData = 0;
+            }
+
+            public void FreeNative()
+            {
+                if (PbData == IntPtr.Zero)
+                {
+                    return;
+                }
+                LocalFree(PbData);
+                PbData = IntPtr.Zero;
+                CbData = 0;
+            }
+        }
+    }
 }
