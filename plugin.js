@@ -158,7 +158,8 @@
     var regexMatched = true;
     if (settings.regexFilter) {
       try {
-        regexMatched = new RegExp(String(settings.regexFilter), 'i').test((item.sender || '') + '\n' + (item.body || ''));
+        // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+        regexMatched = safeRegexPattern(settings.regexFilter) && new RegExp(String(settings.regexFilter), 'i').test((item.sender || '') + '\n' + (item.body || ''));
       } catch (error) {
         regexMatched = false;
       }
@@ -166,6 +167,14 @@
     return (!filter || haystack.indexOf(filter) !== -1) &&
       regexMatched &&
       senderMatched;
+  }
+
+  function safeRegexPattern(pattern) {
+    var text = String(pattern || '');
+    if (!text || text.length > 128) {
+      return false;
+    }
+    return !/(\([^)]*[+*][^)]*\)|\[[^\]]+\])[+*{]/.test(text) && !/([+*{][^)]*){2,}/.test(text);
   }
 
   function refreshTitles() {
