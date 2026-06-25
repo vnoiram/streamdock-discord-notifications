@@ -11,6 +11,10 @@
       <input id="endpoint" class="sdpi-item-value" value="ws://127.0.0.1:41921">
     </div>
     <div class="sdpi-item">
+      <div class="sdpi-item-label">App</div>
+      <input id="appName" class="sdpi-item-value" value="Discord" placeholder="Discord, Slack, Teams">
+    </div>
+    <div class="sdpi-item">
       <div class="sdpi-item-label">Body chars</div>
       <input id="maxBodyChars" class="sdpi-item-value" type="number" min="12" max="120" value="48">
     </div>
@@ -23,6 +27,19 @@
       <input id="filter" class="sdpi-item-value" placeholder="sender/body contains">
     </div>
     <div class="sdpi-item">
+      <div class="sdpi-item-label">Sender</div>
+      <input id="senderFilter" class="sdpi-item-value" list="senders" placeholder="choose or type sender">
+      <datalist id="senders"></datalist>
+      <button id="refreshSenders" class="sdpi-button" type="button">Refresh</button>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Sender match</div>
+      <select id="senderMatchMode" class="sdpi-item-value">
+        <option value="contains">Contains</option>
+        <option value="exact">Exact</option>
+      </select>
+    </div>
+    <div class="sdpi-item">
       <div class="sdpi-item-label">Privacy</div>
       <select id="privacyMode" class="sdpi-item-value">
         <option value="preview">Show preview</option>
@@ -31,10 +48,16 @@
       </select>
     </div>
     <div class="sdpi-item">
+      <div class="sdpi-item-label">Persist</div>
+      <input id="persistHistory" class="sdpi-checkbox" type="checkbox" checked>
+      <span class="sdpi-status">keep helper history on restart</span>
+    </div>
+    <div class="sdpi-item">
       <div class="sdpi-item-label">Settings</div>
       <button id="exportSettings" class="sdpi-button" type="button">Export</button>
       <label class="sdpi-button" for="importSettings">Import</label>
       <input id="importSettings" type="file" accept="application/json" hidden>
+      <span id="status" class="sdpi-status">ready</span>
     </div>
   </body>
 </html>

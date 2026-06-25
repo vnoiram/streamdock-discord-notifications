@@ -6,7 +6,7 @@
   var pluginUuid = null;
   var helperSocket = null;
   var reconnectTimer = null;
-  var globalSettings = { endpoint: DEFAULT_ENDPOINT, maxBodyChars: 48, historyLimit: 10, filter: '', privacyMode: 'preview' };
+  var globalSettings = { endpoint: DEFAULT_ENDPOINT, appName: 'Discord', maxBodyChars: 48, historyLimit: 10, filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: 'preview', persistHistory: true };
   var contexts = {};
   var state = { connected: false, permission: 'unknown', sender: '', body: '', history: [], index: 0 };
 
@@ -67,7 +67,7 @@
     }
     var item = state.history[state.index] || { sender: state.sender, body: state.body };
     if (globalSettings.privacyMode === 'count') {
-      return 'Discord\n' + state.history.length + ' new';
+      return (globalSettings.appName || 'Notify') + '\n' + state.history.length + ' new';
     }
     if (item.sender || item.body) {
       if (globalSettings.privacyMode === 'sender') {
@@ -75,7 +75,17 @@
       }
       return truncate(item.sender || 'Discord', 20) + '\n' + truncate(item.body || 'New DM', Number(globalSettings.maxBodyChars) || 48);
     }
-    return 'Discord\nwaiting';
+    return (globalSettings.appName || 'Notify') + '\nwaiting';
+  }
+
+  function matchesFilters(item) {
+    var haystack = ((item.sender || '') + ' ' + (item.body || '')).toLowerCase();
+    var filter = String(globalSettings.filter || '').toLowerCase();
+    var senderFilter = String(globalSettings.senderFilter || '').toLowerCase();
+    var sender = String(item.sender || '').toLowerCase();
+    var senderMatched = !senderFilter || (globalSettings.senderMatchMode === 'exact' ? sender === senderFilter : sender.indexOf(senderFilter) !== -1);
+    return (!filter || haystack.indexOf(filter) !== -1) &&
+      senderMatched;
   }
 
   function refreshTitles() {
@@ -103,7 +113,7 @@
     helperSocket.onopen = function () {
       state.connected = true;
       refreshTitles();
-      helperSend({ command: 'subscribe', app: 'Discord' });
+      helperSend({ command: 'subscribe', app: globalSettings.appName || 'Discord', persist: globalSettings.persistHistory !== false });
     };
 
     helperSocket.onmessage = function (event) {
@@ -112,9 +122,12 @@
         state.permission = message.status || 'unknown';
       }
       if (message.event === 'notification') {
+        if (message.app && globalSettings.appName && String(message.app).toLowerCase().indexOf(String(globalSettings.appName).toLowerCase()) === -1) {
+          return;
+        }
         state.permission = 'granted';
         var item = { sender: message.sender || message.title || '', body: message.body || message.text || '', time: message.time || Date.now() };
-        if (!globalSettings.filter || (item.sender + ' ' + item.body).toLowerCase().indexOf(globalSettings.filter.toLowerCase()) !== -1) {
+        if (matchesFilters(item)) {
           state.history.unshift(item);
           state.history = state.history.slice(0, Number(globalSettings.historyLimit) || 10);
           state.index = 0;
@@ -125,7 +138,7 @@
       }
       if (message.event === 'history') {
         state.history = (message.items || []).filter(function (item) {
-          return !globalSettings.filter || ((item.sender || '') + ' ' + (item.body || '')).toLowerCase().indexOf(globalSettings.filter.toLowerCase()) !== -1;
+          return matchesFilters(item);
         }).slice(0, Number(globalSettings.historyLimit) || 10);
         state.index = 0;
       }
@@ -169,9 +182,9 @@
         state.history = [];
         state.sender = '';
         state.body = '';
-        helperSend({ command: 'clear', app: 'Discord' });
+        helperSend({ command: 'clear', app: globalSettings.appName || 'Discord' });
         refreshTitles();
-      } else if (!helperSend({ command: 'latest', app: 'Discord' })) {
+      } else if (!helperSend({ command: 'latest', app: globalSettings.appName || 'Discord' })) {
         showAlert(message.context);
       }
     } else if (message.event === 'dialRotate') {
@@ -183,7 +196,7 @@
     } else if (message.event === 'didReceiveGlobalSettings') {
       globalSettings = Object.assign({}, globalSettings, message.payload && message.payload.settings || {});
       connectHelper();
-      helperSend({ command: 'history', app: 'Discord', limit: Number(globalSettings.historyLimit) || 10 });
+      helperSend({ command: 'history', app: globalSettings.appName || 'Discord', limit: Number(globalSettings.historyLimit) || 10 });
     }
   }
 

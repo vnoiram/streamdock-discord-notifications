@@ -19,9 +19,12 @@ internal static class Program
     private static readonly UserNotificationListener Listener = UserNotificationListener.Current;
     private static readonly object HistoryLock = new();
     private static readonly List<LatestNotification> History = new();
+    private static readonly ConcurrentDictionary<string, byte> SubscribedApps = new(StringComparer.OrdinalIgnoreCase);
     private static TypedEventHandler<UserNotificationListener, UserNotificationChangedEventArgs>? _notificationChangedHandler;
     private static LatestNotification? _latest;
     private static string? _logFile;
+    private static string? _historyFile;
+    private static string _defaultApp = "Discord";
 
     private static async Task Main(string[] args)
     {
@@ -30,7 +33,15 @@ internal static class Program
             ?? DefaultPrefix;
         _logFile = args.FirstOrDefault(arg => arg.StartsWith("--log-file=", StringComparison.OrdinalIgnoreCase))?.Split('=', 2)[1]
             ?? Environment.GetEnvironmentVariable("STREAMDOCK_DISCORD_HELPER_LOG");
+        _historyFile = args.FirstOrDefault(arg => arg.StartsWith("--history-file=", StringComparison.OrdinalIgnoreCase))?.Split('=', 2)[1]
+            ?? Environment.GetEnvironmentVariable("STREAMDOCK_DISCORD_HISTORY_FILE")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StreamDock", "discord-notifications-history.json");
+        _defaultApp = args.FirstOrDefault(arg => arg.StartsWith("--app=", StringComparison.OrdinalIgnoreCase))?.Split('=', 2)[1]
+            ?? Environment.GetEnvironmentVariable("STREAMDOCK_NOTIFICATION_APP")
+            ?? "Discord";
+        SubscribedApps[_defaultApp] = 0;
 
+        LoadHistory();
         var access = await EnsureAccessAsync();
         Log($"notification access: {access}");
         await StartNotificationWatcherAsync(access);
@@ -50,23 +61,28 @@ internal static class Program
             return;
         }
 
-        _latest = await FindLatestDiscordNotificationAsync();
+        _latest = await FindLatestNotificationAsync(_defaultApp);
         _notificationChangedHandler = async (_, args) =>
         {
             if (args.ChangeKind is UserNotificationChangedKind.Added or UserNotificationChangedKind.Changed)
             {
-                _latest = await FindLatestDiscordNotificationAsync();
-                if (_latest is not null)
+                foreach (var app in SubscribedApps.Keys.DefaultIfEmpty(_defaultApp))
                 {
-                    AddHistory(_latest);
-                    Log($"notification: {_latest.Sender}");
-                    await BroadcastAsync(new
+                    var latest = await FindLatestNotificationAsync(app);
+                    if (latest is not null)
                     {
-                        @event = "notification",
-                        sender = _latest.Sender,
-                        body = _latest.Body,
-                        preview = _latest.PreviewAvailable
-                    });
+                        _latest = latest;
+                        AddHistory(latest, persist: true);
+                        Log($"notification: {latest.AppName}:{latest.Sender}");
+                        await BroadcastAsync(new
+                        {
+                            @event = "notification",
+                            app = latest.AppName,
+                            sender = latest.Sender,
+                            body = latest.Body,
+                            preview = latest.PreviewAvailable
+                        });
+                    }
                 }
             }
         };
@@ -143,18 +159,19 @@ internal static class Program
             var command = JsonSerializer.Deserialize<HelperCommand>(text, JsonOptions);
             if (command?.Command is "subscribe")
             {
+                SubscribedApps[command.App ?? _defaultApp] = 0;
                 await SendPermissionAsync(socket);
             }
             else if (command?.Command is "latest")
             {
-                _latest = await FindLatestDiscordNotificationAsync();
+                _latest = await FindLatestNotificationAsync(command.App ?? _defaultApp);
                 if (_latest is null)
                 {
                     await SendAsync(socket, new { @event = "preview_unavailable", sender = "" });
                 }
                 else
                 {
-                    AddHistory(_latest);
+                    AddHistory(_latest, command.Persist ?? true);
                     await SendAsync(socket, new
                     {
                         @event = "notification",
@@ -169,15 +186,32 @@ internal static class Program
                 await SendAsync(socket, new
                 {
                     @event = "history",
-                    items = GetHistory(command.Limit)
+                    items = GetHistory(command.Limit, command.App)
+                });
+            }
+            else if (command?.Command is "senders")
+            {
+                await SendAsync(socket, new
+                {
+                    @event = "senders",
+                    app = command.App ?? _defaultApp,
+                    senders = GetSenders(command.App)
                 });
             }
             else if (command?.Command is "clear")
             {
                 lock (HistoryLock)
                 {
-                    History.Clear();
+                    if (string.IsNullOrWhiteSpace(command.App))
+                    {
+                        History.Clear();
+                    }
+                    else
+                    {
+                        History.RemoveAll(item => IsTargetApp(item.AppName, command.App));
+                    }
                 }
+                SaveHistory();
                 await SendAsync(socket, new { @event = "history", items = Array.Empty<object>() });
             }
         }
@@ -198,21 +232,21 @@ internal static class Program
         }
     }
 
-    private static async Task<LatestNotification?> FindLatestDiscordNotificationAsync()
+    private static async Task<LatestNotification?> FindLatestNotificationAsync(string app)
     {
         var notifications = await Listener.GetNotificationsAsync(NotificationKinds.Toast);
         var discordNotifications = notifications
             .Select(ReadNotification)
             .Where(notification => notification is not null)
             .Cast<LatestNotification>()
-            .Where(notification => IsDiscord(notification.AppName))
+            .Where(notification => IsTargetApp(notification.AppName, app))
             .OrderByDescending(notification => notification.Created)
             .ToList();
 
         return discordNotifications.FirstOrDefault();
     }
 
-    private static void AddHistory(LatestNotification notification)
+    private static void AddHistory(LatestNotification notification, bool persist)
     {
         lock (HistoryLock)
         {
@@ -226,20 +260,41 @@ internal static class Program
                 History.RemoveRange(50, History.Count - 50);
             }
         }
+        if (persist)
+        {
+            SaveHistory();
+        }
     }
 
-    private static object[] GetHistory(int? limit)
+    private static object[] GetHistory(int? limit, string? app)
     {
         var take = Math.Clamp(limit ?? 10, 1, 50);
         lock (HistoryLock)
         {
-            return History.Take(take).Select(item => new
+            return History
+                .Where(item => string.IsNullOrWhiteSpace(app) || IsTargetApp(item.AppName, app))
+                .Take(take).Select(item => new
             {
+                app = item.AppName,
                 sender = item.Sender,
                 body = item.Body,
                 preview = item.PreviewAvailable,
                 time = item.Created.ToUnixTimeMilliseconds()
             }).Cast<object>().ToArray();
+        }
+    }
+
+    private static string[] GetSenders(string? app)
+    {
+        lock (HistoryLock)
+        {
+            return History
+                .Where(item => string.IsNullOrWhiteSpace(app) || IsTargetApp(item.AppName, app))
+                .Select(item => item.Sender)
+                .Where(sender => !string.IsNullOrWhiteSpace(sender))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(sender => sender, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
     }
 
@@ -263,9 +318,54 @@ internal static class Program
         return new LatestNotification(appName, sender, body, !string.IsNullOrWhiteSpace(body), notification.CreationTime);
     }
 
-    private static bool IsDiscord(string appName)
+    private static bool IsTargetApp(string appName, string? targetApp)
     {
-        return appName.Contains("Discord", StringComparison.OrdinalIgnoreCase);
+        return appName.Contains(string.IsNullOrWhiteSpace(targetApp) ? "Discord" : targetApp, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void LoadHistory()
+    {
+        if (string.IsNullOrWhiteSpace(_historyFile) || !File.Exists(_historyFile))
+        {
+            return;
+        }
+        try
+        {
+            var items = JsonSerializer.Deserialize<List<LatestNotification>>(File.ReadAllText(_historyFile), JsonOptions);
+            if (items is null)
+            {
+                return;
+            }
+            lock (HistoryLock)
+            {
+                History.Clear();
+                History.AddRange(items.Take(50));
+            }
+        }
+        catch (Exception error)
+        {
+            Log($"load history failed: {error.Message}");
+        }
+    }
+
+    private static void SaveHistory()
+    {
+        if (string.IsNullOrWhiteSpace(_historyFile))
+        {
+            return;
+        }
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_historyFile)!);
+            lock (HistoryLock)
+            {
+                File.WriteAllText(_historyFile, JsonSerializer.Serialize(History.Take(50), JsonOptions));
+            }
+        }
+        catch (Exception error)
+        {
+            Log($"save history failed: {error.Message}");
+        }
     }
 
     private static async Task BroadcastAsync(object payload)
@@ -296,7 +396,7 @@ internal static class Program
         }
     }
 
-    private sealed record HelperCommand(string? Command, string? App, int? Limit);
+    private sealed record HelperCommand(string? Command, string? App, int? Limit, bool? Persist);
 
     private sealed record LatestNotification(
         string AppName,

@@ -22,6 +22,9 @@ Initial actions:
 - Browse notification history with a knob
 - Clear displayed history
 - Filter by sender/body text
+- Monitor another notification app by display-name substring, such as Slack or Teams
+- Optional sender-only filter and helper-side history persistence
+- Sender picker in the Property Inspector: refresh known senders from helper history, then choose a sender and use exact or contains matching.
 - Privacy modes: preview, sender-only, count-only
 - Diagnostics action
 
@@ -33,7 +36,7 @@ ws://127.0.0.1:41921
 
 Expected helper messages:
 
-- Dock to helper: `{ "command": "subscribe", "app": "Discord" }` and `{ "command": "latest", "app": "Discord" }`.
+- Dock to helper: `{ "command": "subscribe", "app": "Discord" }` and `{ "command": "latest", "app": "Discord" }`. `app` may be another Windows notification app display-name substring.
 - Helper to Dock: `{ "event": "notification", "sender": "...", "body": "...", "preview": true }`.
 - Helper to Dock: `{ "event": "permission", "status": "granted" }` or `{ "event": "permission", "status": "denied" }`.
 
@@ -109,7 +112,7 @@ Run with a log file:
 dotnet run --project helper\DiscordNotificationHelper.csproj -- --log-file "$env:TEMP\streamdock-discord.log"
 ```
 
-It listens on `http://127.0.0.1:41921/` for WebSocket upgrades, requests Windows notification listener access, and filters toast notifications whose app display name contains `Discord`.
+It listens on `http://127.0.0.1:41921/` for WebSocket upgrades, requests Windows notification listener access, and filters toast notifications whose app display name contains the configured app name. History is persisted under `%LOCALAPPDATA%\StreamDock\discord-notifications-history.json` by default.
 
 The first run may prompt for Windows notification access. If access is denied, enable notification listener access in Windows privacy/settings and restart the helper.
 
