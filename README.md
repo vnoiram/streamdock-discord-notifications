@@ -31,6 +31,7 @@ Initial actions:
 - Temporary preview: set `Temp preview` seconds to briefly show message text after a new notification, then fall back to the selected privacy mode.
 - Visual alert: matching actions switch their key image to an unread/new state. `Alert sec` controls how long the stronger new-message color is kept.
 - Per-action visual styling: set normal/fresh background colors, foreground color, label, and sublabel for each notification rule.
+- Per-action title prefix, regex filter, quiet hours, and auto-read timer.
 - History storage controls: `Store max` controls helper-side persisted history count and `Save path` can override the helper history JSON path. Empty path uses the helper default under `%LOCALAPPDATA%\StreamDock\`.
 - Property Inspector `Copy` / `Paste` for duplicating both global notification settings and per-action filters between keys.
 - Privacy modes: preview, sender-only, count-only
@@ -121,6 +122,8 @@ dotnet run --project helper\DiscordNotificationHelper.csproj -- --log-file "$env
 ```
 
 It listens on `http://127.0.0.1:41921/` for WebSocket upgrades, requests Windows notification listener access, and filters toast notifications whose app display name contains the configured app name. History is persisted under `%LOCALAPPDATA%\StreamDock\discord-notifications-history.json` by default. The Stream Dock Property Inspector can send a runtime `configure` command to change the history file and maximum retained items.
+
+Per-action `Regex` is matched against sender and body text. `Quiet start` / `Quiet end` suppress unread/visual increments during that local time window while still keeping history. `Auto read` clears the unread count after the configured number of seconds.
 
 The first run may prompt for Windows notification access. If access is denied, enable notification listener access in Windows privacy/settings and restart the helper.
 

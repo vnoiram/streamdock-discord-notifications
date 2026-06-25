@@ -4,7 +4,7 @@
   var websocket = null;
   var context = null;
   var globalSettings = { endpoint: 'ws://127.0.0.1:41921', appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', persistHistory: true };
-  var actionSettings = { filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '' };
+  var actionSettings = { filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0 };
   var helperSocket = null;
 
   function update() {
@@ -25,6 +25,7 @@
     globalSettings.historyFile = document.getElementById('historyFile').value.trim();
     globalSettings.persistHistory = document.getElementById('persistHistory').checked;
     actionSettings.filter = document.getElementById('filter').value.trim();
+    actionSettings.regexFilter = document.getElementById('regexFilter').value.trim();
     actionSettings.senderFilter = document.getElementById('senderFilter').value.trim();
     actionSettings.senderMatchMode = document.getElementById('senderMatchMode').value;
     actionSettings.privacyMode = document.getElementById('privacyMode').value;
@@ -36,6 +37,10 @@
     actionSettings.imageForeground = document.getElementById('imageForeground').value;
     actionSettings.imageLabel = document.getElementById('imageLabel').value.trim();
     actionSettings.imageSub = document.getElementById('imageSub').value.trim();
+    actionSettings.titlePrefix = document.getElementById('titlePrefix').value.trim();
+    actionSettings.quietStart = document.getElementById('quietStart').value.trim();
+    actionSettings.quietEnd = document.getElementById('quietEnd').value.trim();
+    actionSettings.autoReadSeconds = Number(document.getElementById('autoReadSeconds').value) || 0;
   }
 
   function applyGlobalSettings(next) {
@@ -52,6 +57,7 @@
   function applyActionSettings(next) {
     actionSettings = Object.assign({}, actionSettings, next || {});
     document.getElementById('filter').value = actionSettings.filter || '';
+    document.getElementById('regexFilter').value = actionSettings.regexFilter || '';
     document.getElementById('senderFilter').value = actionSettings.senderFilter || '';
     document.getElementById('senderMatchMode').value = actionSettings.senderMatchMode || 'contains';
     document.getElementById('privacyMode').value = actionSettings.privacyMode || '';
@@ -63,6 +69,10 @@
     document.getElementById('imageForeground').value = normalizeColor(actionSettings.imageForeground, '#ffffff');
     document.getElementById('imageLabel').value = actionSettings.imageLabel || '';
     document.getElementById('imageSub').value = actionSettings.imageSub || '';
+    document.getElementById('titlePrefix').value = actionSettings.titlePrefix || '';
+    document.getElementById('quietStart').value = actionSettings.quietStart || '';
+    document.getElementById('quietEnd').value = actionSettings.quietEnd || '';
+    document.getElementById('autoReadSeconds').value = actionSettings.autoReadSeconds || 0;
   }
 
   function normalizeColor(value, fallback) {
@@ -189,6 +199,7 @@
     document.getElementById('historyStoreLimit').addEventListener('input', update);
     document.getElementById('historyFile').addEventListener('input', update);
     document.getElementById('filter').addEventListener('input', update);
+    document.getElementById('regexFilter').addEventListener('input', update);
     document.getElementById('senderFilter').addEventListener('input', update);
     document.getElementById('senderMatchMode').addEventListener('change', update);
     document.getElementById('privacyMode').addEventListener('change', update);
@@ -199,6 +210,10 @@
     document.getElementById('imageForeground').addEventListener('input', update);
     document.getElementById('imageLabel').addEventListener('input', update);
     document.getElementById('imageSub').addEventListener('input', update);
+    document.getElementById('titlePrefix').addEventListener('input', update);
+    document.getElementById('quietStart').addEventListener('input', update);
+    document.getElementById('quietEnd').addEventListener('input', update);
+    document.getElementById('autoReadSeconds').addEventListener('input', update);
     document.getElementById('persistHistory').addEventListener('change', update);
     document.getElementById('refreshSenders').addEventListener('click', refreshSenders);
     document.getElementById('copySettings').addEventListener('click', copySettings);

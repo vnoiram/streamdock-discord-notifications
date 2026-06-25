@@ -35,6 +35,10 @@
       <input id="filter" class="sdpi-item-value" placeholder="sender/body contains">
     </div>
     <div class="sdpi-item">
+      <div class="sdpi-item-label">Regex</div>
+      <input id="regexFilter" class="sdpi-item-value" placeholder="optional sender/body regex">
+    </div>
+    <div class="sdpi-item">
       <div class="sdpi-item-label">Sender</div>
       <input id="senderFilter" class="sdpi-item-value" list="senders" placeholder="choose or type sender">
       <datalist id="senders"></datalist>
@@ -89,6 +93,22 @@
     <div class="sdpi-item">
       <div class="sdpi-item-label">Image sub</div>
       <input id="imageSub" class="sdpi-item-value" placeholder="NEW">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Title prefix</div>
+      <input id="titlePrefix" class="sdpi-item-value" placeholder="Work">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Quiet start</div>
+      <input id="quietStart" class="sdpi-item-value" placeholder="22:00">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Quiet end</div>
+      <input id="quietEnd" class="sdpi-item-value" placeholder="08:00">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Auto read</div>
+      <input id="autoReadSeconds" class="sdpi-item-value" type="number" min="0" max="3600" value="0">
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Persist</div>

@@ -18,7 +18,12 @@
     imageFreshBackground: '',
     imageForeground: '',
     imageLabel: '',
-    imageSub: ''
+    imageSub: '',
+    titlePrefix: '',
+    regexFilter: '',
+    quietStart: '',
+    quietEnd: '',
+    autoReadSeconds: 0
   };
   var globalSettings = { endpoint: DEFAULT_ENDPOINT, appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: 'preview', persistHistory: true, previewSeconds: 0 };
   var contexts = {};
@@ -93,15 +98,19 @@
     }
     var privacyMode = effectivePrivacyMode(context, item);
     if (privacyMode === 'count') {
-      return (settings.senderFilter || globalSettings.appName || 'Notify') + '\n' + unreadFor(context) + ' new';
+      return titlePrefix(settings) + (settings.senderFilter || globalSettings.appName || 'Notify') + '\n' + unreadFor(context) + ' new';
     }
     if (item.sender || item.body) {
       if (privacyMode === 'sender') {
-        return truncate(item.sender || 'Discord', 20) + '\nDM';
+        return titlePrefix(settings) + truncate(item.sender || 'Discord', 20) + '\nDM';
       }
-      return truncate(item.sender || 'Discord', 20) + '\n' + truncate(item.body || 'New DM', Number(globalSettings.maxBodyChars) || 48);
+      return titlePrefix(settings) + truncate(item.sender || 'Discord', 20) + '\n' + truncate(item.body || 'New DM', Number(globalSettings.maxBodyChars) || 48);
     }
-    return (globalSettings.appName || 'Notify') + '\nwaiting';
+    return titlePrefix(settings) + (globalSettings.appName || 'Notify') + '\nwaiting';
+  }
+
+  function titlePrefix(settings) {
+    return settings.titlePrefix ? truncate(settings.titlePrefix, 12) + ' ' : '';
   }
 
   function settingsFor(context) {
@@ -146,7 +155,16 @@
     var senderFilter = String(settings.senderFilter || '').toLowerCase();
     var sender = String(item.sender || '').toLowerCase();
     var senderMatched = !senderFilter || (settings.senderMatchMode === 'exact' ? sender === senderFilter : sender.indexOf(senderFilter) !== -1);
+    var regexMatched = true;
+    if (settings.regexFilter) {
+      try {
+        regexMatched = new RegExp(String(settings.regexFilter), 'i').test((item.sender || '') + '\n' + (item.body || ''));
+      } catch (error) {
+        regexMatched = false;
+      }
+    }
     return (!filter || haystack.indexOf(filter) !== -1) &&
+      regexMatched &&
       senderMatched;
   }
 
@@ -249,8 +267,11 @@
           if (matchesFilters(item, settingsFor(context))) {
             contexts[context].index = 0;
             contexts[context].lastMatchTime = Date.now();
-            setUnread(context, unreadFor(context) + 1);
-            scheduleVisualRefresh(context);
+            if (!quietNow(settingsFor(context))) {
+              setUnread(context, unreadFor(context) + 1);
+              scheduleVisualRefresh(context);
+              scheduleAutoRead(context);
+            }
           }
         });
         state.sender = item.sender;
@@ -304,6 +325,9 @@
     } else if (message.event === 'willDisappear') {
       if (contexts[message.context] && contexts[message.context].visualTimer) {
         clearTimeout(contexts[message.context].visualTimer);
+      }
+      if (contexts[message.context] && contexts[message.context].autoReadTimer) {
+        clearTimeout(contexts[message.context].autoReadTimer);
       }
       delete contexts[message.context];
     } else if (message.event === 'keyDown') {
@@ -371,6 +395,43 @@
         }
       }, delay + 100);
     }
+  }
+
+  function quietNow(settings) {
+    if (!settings.quietStart || !settings.quietEnd) {
+      return false;
+    }
+    var start = minutesOfDay(settings.quietStart);
+    var end = minutesOfDay(settings.quietEnd);
+    if (start < 0 || end < 0 || start === end) {
+      return false;
+    }
+    var now = new Date();
+    var current = now.getHours() * 60 + now.getMinutes();
+    return start < end ? current >= start && current < end : current >= start || current < end;
+  }
+
+  function minutesOfDay(value) {
+    var match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return -1;
+    var hours = Number(match[1]);
+    var minutes = Number(match[2]);
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return -1;
+    return hours * 60 + minutes;
+  }
+
+  function scheduleAutoRead(context) {
+    var seconds = Number(settingsFor(context).autoReadSeconds) || 0;
+    if (seconds <= 0 || !contexts[context]) {
+      return;
+    }
+    clearTimeout(contexts[context].autoReadTimer);
+    contexts[context].autoReadTimer = setTimeout(function () {
+      if (contexts[context]) {
+        setUnread(context, 0);
+        refreshTitles();
+      }
+    }, seconds * 1000);
   }
 
   window.connectElgatoStreamDeckSocket = function (port, uuid, registerEvent) {
