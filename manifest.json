@@ -23,6 +23,15 @@
       "PropertyInspectorPath": "property-inspector.html"
     },
     {
+      "UUID": "local.streamdock.discord.sender",
+      "Name": "Sender DM",
+      "Tooltip": "Show notifications from one configured sender.",
+      "Controllers": ["Keypad", "Knob"],
+      "Icon": "icons/plugin",
+      "States": [{ "Title": "Sender", "Image": "icons/plugin" }],
+      "PropertyInspectorPath": "property-inspector.html"
+    },
+    {
       "UUID": "local.streamdock.discord.clear",
       "Name": "Clear",
       "Tooltip": "Clear the displayed Discord notification history.",

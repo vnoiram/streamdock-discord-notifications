@@ -23,6 +23,14 @@
       <input id="historyLimit" class="sdpi-item-value" type="number" min="1" max="50" value="10">
     </div>
     <div class="sdpi-item">
+      <div class="sdpi-item-label">Store max</div>
+      <input id="historyStoreLimit" class="sdpi-item-value" type="number" min="1" max="500" value="50">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Save path</div>
+      <input id="historyFile" class="sdpi-item-value" placeholder="%LOCALAPPDATA%\\StreamDock\\discord-notifications-history.json">
+    </div>
+    <div class="sdpi-item">
       <div class="sdpi-item-label">Filter</div>
       <input id="filter" class="sdpi-item-value" placeholder="sender/body contains">
     </div>
@@ -42,10 +50,45 @@
     <div class="sdpi-item">
       <div class="sdpi-item-label">Privacy</div>
       <select id="privacyMode" class="sdpi-item-value">
+        <option value="">Use default</option>
         <option value="preview">Show preview</option>
         <option value="sender">Sender only</option>
         <option value="count">Count only</option>
       </select>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Temp preview</div>
+      <input id="previewSeconds" class="sdpi-item-value" type="number" min="0" max="300" value="0">
+      <span class="sdpi-status">seconds after new message</span>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Visual alert</div>
+      <input id="visualAlert" class="sdpi-checkbox" type="checkbox" checked>
+      <span class="sdpi-status">change key image for unread</span>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Alert sec</div>
+      <input id="alertSeconds" class="sdpi-item-value" type="number" min="1" max="300" value="8">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Image bg</div>
+      <input id="imageBackground" class="sdpi-item-value" type="color" value="#3f4cb8">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Fresh bg</div>
+      <input id="imageFreshBackground" class="sdpi-item-value" type="color" value="#5865f2">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Image fg</div>
+      <input id="imageForeground" class="sdpi-item-value" type="color" value="#ffffff">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Image label</div>
+      <input id="imageLabel" class="sdpi-item-value" placeholder="blank = unread count">
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Image sub</div>
+      <input id="imageSub" class="sdpi-item-value" placeholder="NEW">
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Persist</div>
@@ -54,6 +97,8 @@
     </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Settings</div>
+      <button id="copySettings" class="sdpi-button" type="button">Copy</button>
+      <button id="pasteSettings" class="sdpi-button" type="button">Paste</button>
       <button id="exportSettings" class="sdpi-button" type="button">Export</button>
       <label class="sdpi-button" for="importSettings">Import</label>
       <input id="importSettings" type="file" accept="application/json" hidden>

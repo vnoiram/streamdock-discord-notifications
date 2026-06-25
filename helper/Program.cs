@@ -24,6 +24,7 @@ internal static class Program
     private static LatestNotification? _latest;
     private static string? _logFile;
     private static string? _historyFile;
+    private static int _maxHistory = 50;
     private static string _defaultApp = "Discord";
 
     private static async Task Main(string[] args)
@@ -39,6 +40,7 @@ internal static class Program
         _defaultApp = args.FirstOrDefault(arg => arg.StartsWith("--app=", StringComparison.OrdinalIgnoreCase))?.Split('=', 2)[1]
             ?? Environment.GetEnvironmentVariable("STREAMDOCK_NOTIFICATION_APP")
             ?? "Discord";
+        _maxHistory = Math.Clamp(ParseIntArg(args, "--max-history=") ?? ParseIntEnv("STREAMDOCK_DISCORD_MAX_HISTORY") ?? 50, 1, 500);
         SubscribedApps[_defaultApp] = 0;
 
         LoadHistory();
@@ -162,6 +164,11 @@ internal static class Program
                 SubscribedApps[command.App ?? _defaultApp] = 0;
                 await SendPermissionAsync(socket);
             }
+            else if (command?.Command is "configure")
+            {
+                ConfigureHistory(command.HistoryFile, command.MaxHistory);
+                await SendAsync(socket, new { @event = "configured", maxHistory = _maxHistory, historyFile = _historyFile });
+            }
             else if (command?.Command is "latest")
             {
                 _latest = await FindLatestNotificationAsync(command.App ?? _defaultApp);
@@ -214,6 +221,17 @@ internal static class Program
                 SaveHistory();
                 await SendAsync(socket, new { @event = "history", items = Array.Empty<object>() });
             }
+            else if (command?.Command is "mark_read")
+            {
+                lock (HistoryLock)
+                {
+                    History.RemoveAll(item =>
+                        (string.IsNullOrWhiteSpace(command.App) || IsTargetApp(item.AppName, command.App)) &&
+                        SenderMatches(item.Sender, command.Sender, command.SenderMatchMode));
+                }
+                SaveHistory();
+                await SendAsync(socket, new { @event = "history", items = GetHistory(command.Limit, command.App) });
+            }
         }
     }
 
@@ -255,9 +273,9 @@ internal static class Program
                 return;
             }
             History.Insert(0, notification);
-            if (History.Count > 50)
+            if (History.Count > _maxHistory)
             {
-                History.RemoveRange(50, History.Count - 50);
+                History.RemoveRange(_maxHistory, History.Count - _maxHistory);
             }
         }
         if (persist)
@@ -268,7 +286,7 @@ internal static class Program
 
     private static object[] GetHistory(int? limit, string? app)
     {
-        var take = Math.Clamp(limit ?? 10, 1, 50);
+        var take = Math.Clamp(limit ?? 10, 1, _maxHistory);
         lock (HistoryLock)
         {
             return History
@@ -296,6 +314,17 @@ internal static class Program
                 .OrderBy(sender => sender, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
+    }
+
+    private static bool SenderMatches(string sender, string? filter, string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return true;
+        }
+        return string.Equals(mode, "exact", StringComparison.OrdinalIgnoreCase)
+            ? sender.Equals(filter, StringComparison.OrdinalIgnoreCase)
+            : sender.Contains(filter, StringComparison.OrdinalIgnoreCase);
     }
 
     private static LatestNotification? ReadNotification(UserNotification notification)
@@ -327,6 +356,10 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(_historyFile) || !File.Exists(_historyFile))
         {
+            lock (HistoryLock)
+            {
+                History.Clear();
+            }
             return;
         }
         try
@@ -339,7 +372,7 @@ internal static class Program
             lock (HistoryLock)
             {
                 History.Clear();
-                History.AddRange(items.Take(50));
+                History.AddRange(items.Take(_maxHistory));
             }
         }
         catch (Exception error)
@@ -356,10 +389,14 @@ internal static class Program
         }
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_historyFile)!);
+            var directory = Path.GetDirectoryName(_historyFile);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
             lock (HistoryLock)
             {
-                File.WriteAllText(_historyFile, JsonSerializer.Serialize(History.Take(50), JsonOptions));
+                File.WriteAllText(_historyFile, JsonSerializer.Serialize(History.Take(_maxHistory), JsonOptions));
             }
         }
         catch (Exception error)
@@ -396,7 +433,44 @@ internal static class Program
         }
     }
 
-    private sealed record HelperCommand(string? Command, string? App, int? Limit, bool? Persist);
+    private static void ConfigureHistory(string? historyFile, int? maxHistory)
+    {
+        if (!string.IsNullOrWhiteSpace(historyFile) && !historyFile.Equals(_historyFile, StringComparison.OrdinalIgnoreCase))
+        {
+            _historyFile = ExpandEnvironmentPath(historyFile);
+            LoadHistory();
+        }
+        if (maxHistory is not null)
+        {
+            _maxHistory = Math.Clamp(maxHistory.Value, 1, 500);
+            lock (HistoryLock)
+            {
+                if (History.Count > _maxHistory)
+                {
+                    History.RemoveRange(_maxHistory, History.Count - _maxHistory);
+                }
+            }
+            SaveHistory();
+        }
+    }
+
+    private static string ExpandEnvironmentPath(string path)
+    {
+        return Environment.ExpandEnvironmentVariables(path);
+    }
+
+    private static int? ParseIntArg(string[] args, string prefix)
+    {
+        var raw = args.FirstOrDefault(arg => arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))?.Split('=', 2)[1];
+        return int.TryParse(raw, out var value) ? value : null;
+    }
+
+    private static int? ParseIntEnv(string name)
+    {
+        return int.TryParse(Environment.GetEnvironmentVariable(name), out var value) ? value : null;
+    }
+
+    private sealed record HelperCommand(string? Command, string? App, int? Limit, bool? Persist, string? Sender, string? SenderMatchMode, string? HistoryFile, int? MaxHistory);
 
     private sealed record LatestNotification(
         string AppName,
