@@ -21,6 +21,7 @@
     imageSub: '',
     titlePrefix: '',
     regexFilter: '',
+    muteFilter: '',
     quietStart: '',
     quietEnd: '',
     autoReadSeconds: 0
@@ -155,6 +156,10 @@
     var senderFilter = String(settings.senderFilter || '').toLowerCase();
     var sender = String(item.sender || '').toLowerCase();
     var senderMatched = !senderFilter || (settings.senderMatchMode === 'exact' ? sender === senderFilter : sender.indexOf(senderFilter) !== -1);
+    var muteFilter = String(settings.muteFilter || '').toLowerCase();
+    if (muteFilter && haystack.indexOf(muteFilter) !== -1) {
+      return false;
+    }
     var regexMatched = true;
     if (settings.regexFilter) {
       try {

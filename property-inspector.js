@@ -4,7 +4,7 @@
   var websocket = null;
   var context = null;
   var globalSettings = { endpoint: 'ws://127.0.0.1:41921', appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', persistHistory: false, encryptHistory: true };
-  var actionSettings = { filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0 };
+  var actionSettings = { filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', muteFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0 };
   var helperSocket = null;
 
   function update() {
@@ -28,6 +28,7 @@
     globalSettings.encryptHistory = document.getElementById('encryptHistory').checked;
     actionSettings.filter = document.getElementById('filter').value.trim();
     actionSettings.regexFilter = document.getElementById('regexFilter').value.trim();
+    actionSettings.muteFilter = document.getElementById('muteFilter').value.trim();
     actionSettings.senderFilter = document.getElementById('senderFilter').value.trim();
     actionSettings.senderMatchMode = document.getElementById('senderMatchMode').value;
     actionSettings.privacyMode = document.getElementById('privacyMode').value;
@@ -62,6 +63,7 @@
     actionSettings = Object.assign({}, actionSettings, next || {});
     document.getElementById('filter').value = actionSettings.filter || '';
     document.getElementById('regexFilter').value = actionSettings.regexFilter || '';
+    document.getElementById('muteFilter').value = actionSettings.muteFilter || '';
     document.getElementById('senderFilter').value = actionSettings.senderFilter || '';
     document.getElementById('senderMatchMode').value = actionSettings.senderMatchMode || 'contains';
     document.getElementById('privacyMode').value = actionSettings.privacyMode || '';
@@ -200,6 +202,23 @@
     });
   }
 
+  function diagnoseSettings() {
+    readForm();
+    var issues = [];
+    if (!globalSettings.endpoint) issues.push('missing endpoint');
+    if (!/^wss?:\/\//i.test(globalSettings.endpoint)) issues.push('invalid endpoint');
+    if (globalSettings.persistHistory && !globalSettings.encryptHistory) issues.push('history not encrypted');
+    if (actionSettings.regexFilter && actionSettings.regexFilter.length > 128) issues.push('regex too long');
+    setStatus(issues.join(', ') || 'diagnostics ok');
+  }
+
+  function resetSettings() {
+    applyGlobalSettings({ endpoint: 'ws://127.0.0.1:41921', appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', persistHistory: false, encryptHistory: true });
+    applyActionSettings({ filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', muteFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0 });
+    update();
+    setStatus('settings reset');
+  }
+
   window.connectElgatoStreamDeckSocket = function (port, uuid, registerEvent) {
     context = uuid;
     websocket = new WebSocket('ws://127.0.0.1:' + port);
@@ -228,6 +247,7 @@
     document.getElementById('historyFile').addEventListener('input', update);
     document.getElementById('filter').addEventListener('input', update);
     document.getElementById('regexFilter').addEventListener('input', update);
+    document.getElementById('muteFilter').addEventListener('input', update);
     document.getElementById('senderFilter').addEventListener('input', update);
     document.getElementById('senderMatchMode').addEventListener('change', update);
     document.getElementById('privacyMode').addEventListener('change', update);
@@ -246,6 +266,8 @@
     document.getElementById('encryptHistory').addEventListener('change', update);
     document.getElementById('refreshSenders').addEventListener('click', refreshSenders);
     document.getElementById('copySettings').addEventListener('click', copySettings);
+    document.getElementById('diagnoseSettings').addEventListener('click', diagnoseSettings);
+    document.getElementById('resetSettings').addEventListener('click', resetSettings);
     document.getElementById('pasteSettings').addEventListener('click', pasteSettings);
     document.getElementById('exportSettings').addEventListener('click', exportSettings);
     document.getElementById('importSettings').addEventListener('change', importSettings);

@@ -32,8 +32,10 @@ Initial actions:
 - Visual alert: matching actions switch their key image to an unread/new state. `Alert sec` controls how long the stronger new-message color is kept.
 - Per-action visual styling: set normal/fresh background colors, foreground color, label, and sublabel for each notification rule.
 - Per-action title prefix, regex filter, quiet hours, and auto-read timer.
+- Per-action mute filter for suppressing matching sender/body text.
 - History storage controls: persisted history is off by default. Enable `Persist` to keep helper history on restart. `Encrypt` protects the saved file with Windows DPAPI for the current Windows user. `Store max` controls helper-side persisted history count and `Save path` can override the helper history path.
 - Property Inspector `Copy` / `Paste` for duplicating both global notification settings and per-action filters between keys.
+- Property Inspector `Diagnose` and `Reset` for quick configuration checks and safe defaults.
 - Privacy modes: preview, sender-only, count-only
 - Diagnostics action
 
