@@ -56,6 +56,16 @@
         <option value="exact">Exact</option>
       </select>
     </div>
+    <div class="sdpi-item block">
+      <div class="sdpi-item-label">Rule presets</div>
+      <textarea id="rulePresetsJson" class="sdpi-item-value textarea short" placeholder='{"Boss DM":{"senderFilter":"Alice","senderMatchMode":"exact","privacyMode":"sender"}}'></textarea>
+    </div>
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Preset</div>
+      <input id="rulePresetName" class="sdpi-item-value" list="rulePresetNames" placeholder="Boss DM">
+      <datalist id="rulePresetNames"></datalist>
+      <button id="applyRulePreset" class="sdpi-button" type="button">Apply</button>
+    </div>
     <div class="sdpi-item">
       <div class="sdpi-item-label">Privacy</div>
       <select id="privacyMode" class="sdpi-item-value">
@@ -132,6 +142,7 @@
       <button id="resetSettings" class="sdpi-button" type="button">Reset</button>
       <button id="pasteSettings" class="sdpi-button" type="button">Paste</button>
       <button id="exportSettings" class="sdpi-button" type="button">Export</button>
+      <button id="copyDiagnostics" class="sdpi-button" type="button">Log</button>
       <label class="sdpi-button" for="importSettings">Import</label>
       <input id="importSettings" type="file" accept="application/json" hidden>
       <span id="status" class="sdpi-status">ready</span>

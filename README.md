@@ -36,6 +36,7 @@ Initial actions:
 - History storage controls: persisted history is off by default. Enable `Persist` to keep helper history on restart. `Encrypt` protects the saved file with Windows DPAPI for the current Windows user. `Store max` controls helper-side persisted history count and `Save path` can override the helper history path.
 - Property Inspector `Copy` / `Paste` for duplicating both global notification settings and per-action filters between keys.
 - Property Inspector `Diagnose` and `Reset` for quick configuration checks and safe defaults.
+- Named notification rule presets, common backup export format, and Property Inspector diagnostic log copy.
 - Privacy modes: preview, sender-only, count-only
 - Diagnostics action
 

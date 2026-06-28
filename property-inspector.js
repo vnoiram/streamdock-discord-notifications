@@ -4,7 +4,7 @@
   var websocket = null;
   var context = null;
   var globalSettings = { endpoint: 'ws://127.0.0.1:41921', appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', persistHistory: false, encryptHistory: true };
-  var actionSettings = { filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', muteFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0 };
+  var actionSettings = { filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', muteFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0, rulePresetsJson: '', rulePresetName: '' };
   var helperSocket = null;
 
   function update() {
@@ -31,6 +31,8 @@
     actionSettings.muteFilter = document.getElementById('muteFilter').value.trim();
     actionSettings.senderFilter = document.getElementById('senderFilter').value.trim();
     actionSettings.senderMatchMode = document.getElementById('senderMatchMode').value;
+    actionSettings.rulePresetsJson = document.getElementById('rulePresetsJson').value.trim();
+    actionSettings.rulePresetName = document.getElementById('rulePresetName').value.trim();
     actionSettings.privacyMode = document.getElementById('privacyMode').value;
     actionSettings.previewSeconds = Number(document.getElementById('previewSeconds').value) || 0;
     actionSettings.visualAlert = document.getElementById('visualAlert').checked;
@@ -66,6 +68,8 @@
     document.getElementById('muteFilter').value = actionSettings.muteFilter || '';
     document.getElementById('senderFilter').value = actionSettings.senderFilter || '';
     document.getElementById('senderMatchMode').value = actionSettings.senderMatchMode || 'contains';
+    document.getElementById('rulePresetsJson').value = actionSettings.rulePresetsJson || '';
+    document.getElementById('rulePresetName').value = actionSettings.rulePresetName || '';
     document.getElementById('privacyMode').value = actionSettings.privacyMode || '';
     document.getElementById('previewSeconds').value = actionSettings.previewSeconds || 0;
     document.getElementById('visualAlert').checked = actionSettings.visualAlert !== false && actionSettings.visualAlert !== 'false';
@@ -79,6 +83,7 @@
     document.getElementById('quietStart').value = actionSettings.quietStart || '';
     document.getElementById('quietEnd').value = actionSettings.quietEnd || '';
     document.getElementById('autoReadSeconds').value = actionSettings.autoReadSeconds || 0;
+    renderRulePresetNames();
   }
 
   function normalizeColor(value, fallback) {
@@ -88,7 +93,7 @@
 
   function exportSettings() {
     readForm();
-    var blob = new Blob([JSON.stringify({ globalSettings: globalSettings, actionSettings: actionSettings }, null, 2)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify(backupPayload(), null, 2)], { type: 'application/json' });
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'streamdock-discord-settings.json';
@@ -100,7 +105,7 @@
     var file = event.target.files && event.target.files[0];
     if (!file) return;
     file.text().then(function (text) {
-      var imported = JSON.parse(text);
+      var imported = settingsFromImport(JSON.parse(text));
       if (imported.globalSettings || imported.actionSettings) {
         applyGlobalSettings(imported.globalSettings);
         applyActionSettings(imported.actionSettings);
@@ -114,7 +119,7 @@
 
   function copySettings() {
     readForm();
-    navigator.clipboard.writeText(JSON.stringify({ globalSettings: globalSettings, actionSettings: actionSettings }, null, 2)).then(function () {
+    navigator.clipboard.writeText(JSON.stringify(backupPayload(), null, 2)).then(function () {
       setStatus('settings copied');
     }).catch(function () {
       setStatus('copy failed');
@@ -123,7 +128,7 @@
 
   function pasteSettings() {
     navigator.clipboard.readText().then(function (text) {
-      var imported = JSON.parse(text);
+      var imported = settingsFromImport(JSON.parse(text));
       if (imported.globalSettings || imported.actionSettings) {
         applyGlobalSettings(imported.globalSettings);
         applyActionSettings(imported.actionSettings);
@@ -140,6 +145,96 @@
 
   function setStatus(text) {
     document.getElementById('status').textContent = text;
+    appendDiagnostics(text);
+  }
+
+  function backupPayload() {
+    return {
+      type: 'streamdock-plugin-backup',
+      plugin: 'streamdock-discord-notifications',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      globalSettings: globalSettings,
+      actionSettings: actionSettings
+    };
+  }
+
+  function settingsFromImport(imported) {
+    if (imported && imported.type === 'streamdock-plugin-backup') {
+      return imported;
+    }
+    return imported || {};
+  }
+
+  function diagnosticsKey() {
+    return 'streamdock-discord-notifications:diagnostics';
+  }
+
+  function diagnosticsLog() {
+    try {
+      return JSON.parse(localStorage.getItem(diagnosticsKey()) || '[]');
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function appendDiagnostics(text) {
+    try {
+      var items = diagnosticsLog();
+      items.unshift({ time: new Date().toISOString(), message: String(text || '') });
+      localStorage.setItem(diagnosticsKey(), JSON.stringify(items.slice(0, 50)));
+    } catch (error) {
+      // localStorage can be disabled in some plugin runtimes.
+    }
+  }
+
+  function copyDiagnostics() {
+    navigator.clipboard.writeText(JSON.stringify(diagnosticsLog(), null, 2)).then(function () {
+      setStatus('diagnostics copied');
+    }).catch(function () {
+      setStatus('diagnostics copy failed');
+    });
+  }
+
+  function parseRulePresets() {
+    if (!actionSettings.rulePresetsJson) {
+      return {};
+    }
+    var parsed = JSON.parse(actionSettings.rulePresetsJson);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  }
+
+  function renderRulePresetNames() {
+    var list = document.getElementById('rulePresetNames');
+    if (!list) return;
+    list.innerHTML = '';
+    try {
+      Object.keys(parseRulePresets()).forEach(function (name) {
+        var option = document.createElement('option');
+        option.value = name;
+        list.appendChild(option);
+      });
+    } catch (error) {
+      setStatus('invalid rule presets');
+    }
+  }
+
+  function applyRulePreset() {
+    readForm();
+    try {
+      var presets = parseRulePresets();
+      var name = actionSettings.rulePresetName;
+      if (!name || !presets[name]) {
+        setStatus('rule preset not found');
+        return;
+      }
+      var preserved = { rulePresetsJson: actionSettings.rulePresetsJson, rulePresetName: name };
+      applyActionSettings(Object.assign({}, actionSettings, presets[name], preserved));
+      update();
+      setStatus('rule preset applied');
+    } catch (error) {
+      setStatus('invalid rule presets');
+    }
   }
 
   function renderEndpointStatus() {
@@ -209,12 +304,19 @@
     if (!/^wss?:\/\//i.test(globalSettings.endpoint)) issues.push('invalid endpoint');
     if (globalSettings.persistHistory && !globalSettings.encryptHistory) issues.push('history not encrypted');
     if (actionSettings.regexFilter && actionSettings.regexFilter.length > 128) issues.push('regex too long');
+    if (actionSettings.rulePresetsJson) {
+      try {
+        parseRulePresets();
+      } catch (error) {
+        issues.push('rule presets invalid');
+      }
+    }
     setStatus(issues.join(', ') || 'diagnostics ok');
   }
 
   function resetSettings() {
     applyGlobalSettings({ endpoint: 'ws://127.0.0.1:41921', appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', persistHistory: false, encryptHistory: true });
-    applyActionSettings({ filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', muteFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0 });
+    applyActionSettings({ filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: '', previewSeconds: 0, visualAlert: true, alertSeconds: 8, imageBackground: '', imageFreshBackground: '', imageForeground: '', imageLabel: '', imageSub: '', titlePrefix: '', regexFilter: '', muteFilter: '', quietStart: '', quietEnd: '', autoReadSeconds: 0, rulePresetsJson: '', rulePresetName: '' });
     update();
     setStatus('settings reset');
   }
@@ -250,6 +352,8 @@
     document.getElementById('muteFilter').addEventListener('input', update);
     document.getElementById('senderFilter').addEventListener('input', update);
     document.getElementById('senderMatchMode').addEventListener('change', update);
+    document.getElementById('rulePresetsJson').addEventListener('input', update);
+    document.getElementById('rulePresetName').addEventListener('input', update);
     document.getElementById('privacyMode').addEventListener('change', update);
     document.getElementById('visualAlert').addEventListener('change', update);
     document.getElementById('alertSeconds').addEventListener('input', update);
@@ -265,11 +369,13 @@
     document.getElementById('persistHistory').addEventListener('change', update);
     document.getElementById('encryptHistory').addEventListener('change', update);
     document.getElementById('refreshSenders').addEventListener('click', refreshSenders);
+    document.getElementById('applyRulePreset').addEventListener('click', applyRulePreset);
     document.getElementById('copySettings').addEventListener('click', copySettings);
     document.getElementById('diagnoseSettings').addEventListener('click', diagnoseSettings);
     document.getElementById('resetSettings').addEventListener('click', resetSettings);
     document.getElementById('pasteSettings').addEventListener('click', pasteSettings);
     document.getElementById('exportSettings').addEventListener('click', exportSettings);
+    document.getElementById('copyDiagnostics').addEventListener('click', copyDiagnostics);
     document.getElementById('importSettings').addEventListener('change', importSettings);
     renderEndpointStatus();
   });

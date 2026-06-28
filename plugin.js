@@ -24,7 +24,9 @@
     muteFilter: '',
     quietStart: '',
     quietEnd: '',
-    autoReadSeconds: 0
+    autoReadSeconds: 0,
+    rulePresetsJson: '',
+    rulePresetName: ''
   };
   var globalSettings = { endpoint: DEFAULT_ENDPOINT, appName: 'Discord', maxBodyChars: 48, historyLimit: 10, historyStoreLimit: 50, historyFile: '', filter: '', senderFilter: '', senderMatchMode: 'contains', privacyMode: 'preview', persistHistory: false, encryptHistory: true, previewSeconds: 0 };
   var contexts = {};
