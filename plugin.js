@@ -6,6 +6,7 @@
   var pluginUuid = null;
   var helperSocket = null;
   var reconnectTimer = null;
+  var reconnectDelay = 2000;
   var DEFAULT_ACTION_SETTINGS = {
     filter: '',
     senderFilter: '',
@@ -141,7 +142,13 @@
   }
 
   function setUnread(context, value) {
-    state.unread[unreadKey(settingsFor(context))] = Math.max(0, Number(value) || 0);
+    var key = unreadKey(settingsFor(context));
+    state.unread[key] = Math.max(0, Number(value) || 0);
+    var keys = Object.keys(state.unread);
+    if (keys.length > 200) {
+      var toDelete = keys.slice(0, keys.length - 200);
+      toDelete.forEach(function (k) { delete state.unread[k]; });
+    }
   }
 
   function historyFor(context) {
@@ -178,10 +185,14 @@
 
   function safeRegexPattern(pattern) {
     var text = String(pattern || '');
-    if (!text || text.length > 128) {
+    if (!text || text.length > 64) {
       return false;
     }
-    return !/(\([^)]*[+*][^)]*\)|\[[^\]]+\])[+*{]/.test(text) && !/([+*{][^)]*){2,}/.test(text);
+    if (/(\([^)]*[+*][^)]*\)|\[[^\]]+\])[+*{]/.test(text)) return false;
+    if (/([+*{][^)]*){2,}/.test(text)) return false;
+    if (/\([^)]+\|[^)]+\)[+*{?]/.test(text)) return false;
+    if (/\([^)]*\.[*+][^)]*\)[+*{]/.test(text)) return false;
+    return true;
   }
 
   function refreshTitles() {
@@ -261,6 +272,7 @@
 
     helperSocket.onopen = function () {
       state.connected = true;
+      reconnectDelay = 2000;
       refreshTitles();
       configureHelper();
       helperSend({ command: 'subscribe', app: globalSettings.appName || 'Discord', persist: globalSettings.persistHistory === true });
@@ -278,7 +290,7 @@
         state.permission = 'granted';
         var item = { sender: message.sender || message.title || '', body: message.body || message.text || '', time: message.time || Date.now() };
         state.history.unshift(item);
-        state.history = state.history.slice(0, Math.max(Number(globalSettings.historyStoreLimit) || 50, Number(globalSettings.historyLimit) || 10));
+        state.history = state.history.slice(0, Math.max(1, Math.max(Number(globalSettings.historyStoreLimit) || 50, Number(globalSettings.historyLimit) || 10)));
         Object.keys(contexts).forEach(function (context) {
           if (matchesFilters(item, settingsFor(context))) {
             contexts[context].index = 0;
@@ -295,7 +307,7 @@
         state.preview = message.preview !== false;
       }
       if (message.event === 'history') {
-        state.history = (message.items || []).slice(0, Math.max(Number(globalSettings.historyStoreLimit) || 50, Number(globalSettings.historyLimit) || 10));
+        state.history = (message.items || []).slice(0, Math.max(1, Math.max(Number(globalSettings.historyStoreLimit) || 50, Number(globalSettings.historyLimit) || 10)));
         Object.keys(contexts).forEach(function (context) {
           contexts[context].index = 0;
         });
@@ -312,7 +324,10 @@
       state.connected = false;
       logMessage('helper connection closed');
       refreshTitles();
-      reconnectTimer = setTimeout(connectHelper, 2000);
+      clearTimeout(reconnectTimer);
+      var delay = reconnectDelay;
+      reconnectDelay = Math.min(30000, reconnectDelay * 2);
+      reconnectTimer = setTimeout(connectHelper, delay);
     };
 
     helperSocket.onerror = function () {
